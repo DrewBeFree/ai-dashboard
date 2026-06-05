@@ -23,7 +23,7 @@ CLAUDE_PRICING = {
 DEFAULT_CONFIG = {
     "name": "Drew",
     "subscriptions": [
-        {"id": "claude_max",   "label": "Claude Max 20x", "provider": "Anthropic", "monthly_cost": 200, "color": "#00e599"},
+        {"id": "claude_pro",   "label": "Claude Pro",      "provider": "Anthropic", "monthly_cost": 20,  "color": "#00e599"},
         {"id": "chatgpt_plus", "label": "ChatGPT Plus",   "provider": "OpenAI",    "monthly_cost": 20,  "color": "#74aa9c"},
         {"id": "grok_super",   "label": "Super Grok",     "provider": "xAI",       "monthly_cost": 30,  "color": "#1da1f2"},
         {"id": "codex",        "label": "Codex CLI",      "provider": "OpenAI",    "monthly_cost": 0,   "color": "#74aa9c"},
@@ -97,7 +97,7 @@ class Handler(SimpleHTTPRequestHandler):
             openai_key = cfg.get("api_keys", {}).get("openai", "")
 
             claude_cost = next(
-                (s["monthly_cost"] for s in cfg.get("subscriptions", []) if s["id"] == "claude_max"), 0
+                (s["monthly_cost"] for s in cfg.get("subscriptions", []) if s["id"] == "claude_pro"), 0
             )
             total_monthly = sum(s["monthly_cost"] for s in cfg.get("subscriptions", []))
             api_savings = round(claude.get("total_api_value", 0) - claude_cost, 2)
