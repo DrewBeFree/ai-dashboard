@@ -222,6 +222,12 @@ td:last-child { text-align:right; }
     </table>
   </div>
 
+  <!-- OpenAI Usage -->
+  <div class="section" id="openai-section">
+    <h3>OpenAI Usage</h3>
+    <div id="openai-content"></div>
+  </div>
+
   <!-- Ollama -->
   <div class="section">
     <h3>
@@ -299,7 +305,7 @@ function render(d) {
 
   const apiVal = d.claude?.total_api_value || 0;
   document.getElementById('card-savings').textContent = `$${apiVal.toFixed(0)}`;
-  const claudeCost = (d.subscriptions||[]).find(s=>s.id==='claude_max')?.monthly_cost || 0;
+  const claudeCost = (d.subscriptions||[]).find(s=>s.id==='claude_pro')?.monthly_cost || 0;
   const saving = apiVal - claudeCost;
   const badge = document.getElementById('card-savings-badge');
   badge.textContent = saving >= 0 ? `+$${saving.toFixed(0)} saved` : `-$${Math.abs(saving).toFixed(0)} under`;
@@ -372,16 +378,64 @@ function render(d) {
     </tr>`;
   }).join('');
 
-  // Subscriptions table
-  document.getElementById('subs-table').innerHTML = (d.subscriptions||[]).map(s => `
-    <tr>
-      <td>
-        <span style="color:${s.color||'#e1e1ef'};font-weight:600">${s.label}</span>
-      </td>
-      <td><span class="provider-tag">${s.provider}</span></td>
+  // Usage availability per provider
+  const usageAvail = {
+    claude_pro:   {status:'live',  note:'session files'},
+    chatgpt_plus: {status:'none',  note:'no usage API (flat subscription)'},
+    grok_super:   {status:'none',  note:'no usage API (xAI)'},
+    codex:        {status:'key',   note:'add OpenAI key for usage'},
+    ollama:       {status:'live',  note:'model list only'},
+  };
+  const openaiHasKey = d.openai_usage?.status === 'ok';
+
+  document.getElementById('subs-table').innerHTML = (d.subscriptions||[]).map(s => {
+    const avail = usageAvail[s.id] || {status:'none', note:'—'};
+    let badge = '';
+    if (s.id === 'codex' || s.id === 'chatgpt_plus') {
+      badge = openaiHasKey
+        ? '<span style="color:var(--green);font-size:11px">● live</span>'
+        : '<span style="color:var(--muted);font-size:11px">needs API key</span>';
+    } else if (avail.status === 'live') {
+      badge = '<span style="color:var(--green);font-size:11px">● live</span>';
+    } else {
+      badge = `<span style="color:var(--muted);font-size:11px">${avail.note}</span>`;
+    }
+    return `<tr>
+      <td><span style="color:${s.color||'#e1e1ef'};font-weight:600">${s.label}</span></td>
+      <td>${badge}</td>
       <td>${s.monthly_cost > 0 ? `$${s.monthly_cost}/mo` : '<span style="color:var(--muted)">Free</span>'}</td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
+
+  // OpenAI Usage
+  const oi = d.openai_usage;
+  const oiEl = document.getElementById('openai-content');
+  if (!oi) {
+    oiEl.innerHTML = '<p style="color:var(--muted);font-size:13px">Add your OpenAI API key to <code style="color:var(--blue)">config.json</code> on atlas to see token usage.</p>';
+  } else if (oi.status === 'error') {
+    oiEl.innerHTML = `<p style="color:var(--red);font-size:13px">API error: ${oi.error}</p>`;
+  } else if (oi.status === 'ok') {
+    const rows = (oi.data?.data || []);
+    if (!rows.length) {
+      oiEl.innerHTML = '<p style="color:var(--muted);font-size:13px">No usage today.</p>';
+    } else {
+      const byModel = {};
+      rows.forEach(r => {
+        const m = r.snapshot_id || 'unknown';
+        byModel[m] = byModel[m] || {req:0, in:0, out:0};
+        byModel[m].req += r.n_requests || 0;
+        byModel[m].in  += r.n_context_tokens_total || 0;
+        byModel[m].out += r.n_generated_tokens_total || 0;
+      });
+      oiEl.innerHTML = '<table style="width:100%"><thead><tr>' +
+        '<th>Model</th><th>Requests</th><th>Input Tokens</th><th>Output Tokens</th>' +
+        '</tr></thead><tbody>' +
+        Object.entries(byModel).map(([m, v]) =>
+          `<tr><td style="color:var(--blue);font-weight:600">${m}</td>` +
+          `<td>${fmt(v.req)}</td><td>${fmt(v.in)}</td><td>${fmt(v.out)}</td></tr>`
+        ).join('') + '</tbody></table>';
+    }
+  }
 
   // Ollama
   const ol = d.ollama || {};
