@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """AI Usage Dashboard — aggregates token usage across Claude, OpenAI, Grok, and Ollama."""
 
+import glob
 import json
+import os
 import threading
 import urllib.request
 import webbrowser
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
 BASE = Path(__file__).parent
 CONFIG_FILE = BASE / "config.json"
 CLAUDE_STATS = Path.home() / ".claude" / "stats-cache.json"
+CLAUDE_SESSIONS = str(Path.home() / ".claude" / "projects" / "**" / "*.jsonl")
 
 CLAUDE_PRICING = {
     "claude-sonnet-4-6":         {"input": 3.0,  "output": 15.0, "cache_read": 0.30, "cache_write": 3.75},
@@ -63,6 +66,39 @@ def get_claude_data():
     return data
 
 
+def get_daily_from_sessions(days=30):
+    """Parse session jsonl files for per-day, per-model token counts."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    daily = {}
+    for path in glob.glob(CLAUDE_SESSIONS, recursive=True):
+        try:
+            with open(path, errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or '"type":"assistant"' not in line and '"type": "assistant"' not in line:
+                        continue
+                    d = json.loads(line)
+                    if d.get("type") != "assistant":
+                        continue
+                    msg = d.get("message", {})
+                    usage = msg.get("usage", {})
+                    if not usage:
+                        continue
+                    ts = d.get("timestamp", 0)
+                    dt = datetime.fromtimestamp(ts / 1000 if ts > 1e10 else ts, tz=timezone.utc)
+                    if dt < cutoff:
+                        continue
+                    date = dt.strftime("%Y-%m-%d")
+                    model = msg.get("model", "unknown")
+                    if model == "<synthetic>":
+                        continue
+                    entry = daily.setdefault(date, {})
+                    entry[model] = entry.get(model, 0) + usage.get("output_tokens", 0)
+        except Exception:
+            pass
+    return [{"date": d, "tokensByModel": daily[d]} for d in sorted(daily)]
+
+
 def get_ollama_data(host):
     try:
         with urllib.request.urlopen(f"{host}/api/tags", timeout=2) as r:
@@ -101,6 +137,9 @@ class Handler(SimpleHTTPRequestHandler):
             )
             total_monthly = sum(s["monthly_cost"] for s in cfg.get("subscriptions", []))
             api_savings = round(claude.get("total_api_value", 0) - claude_cost, 2)
+
+            # Replace stale cached daily data with live session data
+            claude["dailyModelTokens"] = get_daily_from_sessions()
 
             payload = {
                 "name": cfg.get("name", "User"),
