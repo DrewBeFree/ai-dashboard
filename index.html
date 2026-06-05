@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #09090e;
+  --surface:  #0f0f18;
+  --surface2: #161622;
+  --border:   #1e1e2c;
+  --text:     #e1e1ef;
+  --muted:    #55556a;
+  --green:    #00e599;
+  --orange:   #ff9030;
+  --purple:   #9b6ef3;
+  --blue:     #5296e0;
+  --red:      #f25656;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; }
+body {
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:14px; display:flex; overflow:hidden;
+}
+
+/* SIDEBAR */
+aside {
+  width:200px; min-width:200px; background:var(--surface);
+  border-right:1px solid var(--border); display:flex; flex-direction:column;
+  padding:20px 0;
+}
+.logo { padding:0 20px 24px; font-size:15px; font-weight:700; color:var(--text); }
+.logo span { color:var(--green); }
+nav a {
+  display:flex; align-items:center; gap:10px;
+  padding:9px 20px; color:var(--muted); text-decoration:none;
+  font-size:13px; transition:color .15s;
+}
+nav a:hover { color:var(--text); }
+nav a.active { color:var(--green); background:rgba(0,229,153,.07); }
+nav a svg { width:15px; height:15px; flex-shrink:0; }
+.sidebar-section { padding:16px 20px 6px; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
+.provider-pill {
+  display:flex; align-items:center; gap:8px;
+  padding:7px 20px; color:var(--muted); font-size:12px; cursor:default;
+}
+.provider-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+/* MAIN */
+main { flex:1; overflow-y:auto; padding:28px 32px; }
+.topbar { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; }
+.greeting h1 { font-size:22px; font-weight:600; }
+.greeting h1 em { font-style:normal; color:var(--green); }
+.greeting p { color:var(--muted); margin-top:4px; font-size:13px; }
+.refresh-btn {
+  background:var(--surface2); border:1px solid var(--border);
+  color:var(--muted); padding:6px 14px; border-radius:6px;
+  cursor:pointer; font-size:12px; transition:color .15s;
+}
+.refresh-btn:hover { color:var(--text); }
+
+/* METRIC CARDS */
+.cards { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+.card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:18px 20px; position:relative; overflow:hidden;
+}
+.card::before {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(135deg, var(--card-accent,transparent) 0%, transparent 60%);
+  opacity:.08; pointer-events:none;
+}
+.card.green  { --card-accent:#00e599; }
+.card.orange { --card-accent:#ff9030; }
+.card.purple { --card-accent:#9b6ef3; }
+.card-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; }
+.card-value { font-size:28px; font-weight:700; line-height:1; }
+.card-sub   { font-size:12px; color:var(--muted); margin-top:6px; }
+.card-badge {
+  display:inline-block; font-size:11px; padding:2px 8px; border-radius:4px;
+  margin-top:8px; background:rgba(0,229,153,.12); color:var(--green);
+}
+.card-badge.warn { background:rgba(255,144,48,.12); color:var(--orange); }
+
+/* CHARTS ROW */
+.charts { display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:20px; }
+.chart-box {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:18px 20px;
+}
+.chart-box h3 { font-size:13px; font-weight:600; margin-bottom:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.chart-wrap { position:relative; height:200px; }
+
+/* SUBSCRIPTIONS */
+.section { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px 20px; margin-bottom:20px; }
+.section h3 { font-size:13px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:14px; }
+table { width:100%; border-collapse:collapse; }
+th { text-align:left; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; padding:0 0 10px; font-weight:500; }
+td { padding:9px 0; border-top:1px solid var(--border); font-size:13px; }
+td:last-child { text-align:right; }
+.provider-tag {
+  display:inline-block; font-size:11px; padding:2px 8px; border-radius:4px;
+  background:var(--surface2); color:var(--muted);
+}
+
+/* OLLAMA */
+.models-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; margin-top:10px; }
+.model-card {
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:8px; padding:12px; font-size:12px;
+}
+.model-name { font-weight:600; margin-bottom:4px; color:var(--purple); word-break:break-all; }
+.model-meta { color:var(--muted); font-size:11px; }
+.status-dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
+.status-dot.online  { background:var(--green); }
+.status-dot.offline { background:var(--red); }
+
+/* MODEL USAGE TABLE */
+.token-bar-bg { background:var(--border); border-radius:3px; height:5px; margin-top:5px; overflow:hidden; }
+.token-bar    { height:5px; border-radius:3px; transition:width .4s; }
+
+/* LOADING */
+#loading { display:flex; align-items:center; justify-content:center; height:100vh; flex:1; color:var(--muted); font-size:15px; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<aside>
+  <div class="logo">AI <span>Dashboard</span></div>
+  <nav>
+    <a href="#" class="active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Overview
+    </a>
+    <a href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+      Activity
+    </a>
+    <a href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      Settings
+    </a>
+  </nav>
+  <div class="sidebar-section">Providers</div>
+  <div id="sidebar-providers"></div>
+</aside>
+
+<main id="main" style="display:none">
+  <div class="topbar">
+    <div class="greeting">
+      <h1>Good evening, <em id="name-greeting">—</em></h1>
+      <p id="subtitle">Today at a glance &nbsp;·&nbsp; <span id="gen-time">—</span></p>
+    </div>
+    <button class="refresh-btn" onclick="loadData()">↻ Refresh</button>
+  </div>
+
+  <!-- Metric Cards -->
+  <div class="cards">
+    <div class="card orange">
+      <div class="card-label">Monthly Spend</div>
+      <div class="card-value" id="card-spend">—</div>
+      <div class="card-sub" id="card-spend-sub">across all subscriptions</div>
+    </div>
+    <div class="card green">
+      <div class="card-label">API Value (Claude)</div>
+      <div class="card-value" id="card-savings">—</div>
+      <div class="card-sub">vs subscription cost</div>
+      <div class="card-badge" id="card-savings-badge">—</div>
+    </div>
+    <div class="card purple">
+      <div class="card-label">Activity</div>
+      <div class="card-value" id="card-activity">—</div>
+      <div class="card-sub" id="card-activity-sub">—</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts">
+    <div class="chart-box">
+      <h3>Daily Token Usage</h3>
+      <div class="chart-wrap"><canvas id="chart-daily"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <h3>Model Distribution</h3>
+      <div class="chart-wrap"><canvas id="chart-models"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Claude Model Breakdown -->
+  <div class="section">
+    <h3>Claude Model Usage</h3>
+    <table>
+      <thead><tr>
+        <th>Model</th>
+        <th>Output Tokens</th>
+        <th>Cache Read</th>
+        <th>API Value</th>
+      </tr></thead>
+      <tbody id="model-table"></tbody>
+    </table>
+  </div>
+
+  <!-- Subscriptions -->
+  <div class="section">
+    <h3>Subscriptions</h3>
+    <table>
+      <thead><tr>
+        <th>Service</th>
+        <th>Provider</th>
+        <th>Monthly</th>
+      </tr></thead>
+      <tbody id="subs-table"></tbody>
+    </table>
+  </div>
+
+  <!-- Ollama -->
+  <div class="section">
+    <h3>
+      <span class="status-dot" id="ollama-dot"></span>
+      Ollama &nbsp;<span id="ollama-status" style="font-weight:400"></span>
+    </h3>
+    <div class="models-grid" id="ollama-models"></div>
+    <div id="ollama-empty" style="display:none;color:var(--muted);font-size:13px;margin-top:8px">No models found or Ollama is offline.</div>
+  </div>
+</main>
+
+<div id="loading">Loading…</div>
+
+<script>
+const MODEL_COLORS = {
+  'claude-sonnet-4-6':         '#00e599',
+  'claude-opus-4-7':           '#9b6ef3',
+  'claude-opus-4-6':           '#9b6ef3',
+  'claude-haiku-4-5-20251001': '#5296e0',
+};
+const DEFAULT_COLOR = '#55556a';
+
+function modelLabel(id) {
+  return id.replace('claude-', '').replace('-20251001', '').replace(/-/g, ' ');
+}
+
+function fmt(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return n.toLocaleString();
+}
+
+function fmtBytes(b) {
+  if (!b) return '—';
+  if (b >= 1e9) return (b / 1e9).toFixed(1) + ' GB';
+  if (b >= 1e6) return (b / 1e6).toFixed(1) + ' MB';
+  return (b / 1e3).toFixed(0) + ' MB';
+}
+
+let dailyChart, modelChart;
+
+async function loadData() {
+  try {
+    const data = await fetch('/api/data').then(r => r.json());
+    render(data);
+  } catch(e) {
+    document.getElementById('loading').textContent = 'Could not reach /api/data — is app.py running?';
+  }
+}
+
+function render(d) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('main').style.display = 'block';
+
+  // Greeting
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+  document.querySelector('.greeting h1').innerHTML =
+    `${greet}, <em>${d.name}</em>`;
+  document.getElementById('gen-time').textContent =
+    new Date(d.generated_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+  // Sidebar providers
+  const providers = [...new Set((d.subscriptions || []).map(s => s.provider))];
+  const provColors = {'Anthropic':'#00e599','OpenAI':'#74aa9c','xAI':'#1da1f2','Local':'#a78bfa'};
+  document.getElementById('sidebar-providers').innerHTML = providers.map(p =>
+    `<div class="provider-pill"><span class="provider-dot" style="background:${provColors[p]||'#55556a'}"></span>${p}</div>`
+  ).join('');
+
+  // Metric cards
+  document.getElementById('card-spend').textContent = `$${d.total_monthly_cost}/mo`;
+  document.getElementById('card-spend-sub').textContent =
+    `${(d.subscriptions||[]).filter(s=>s.monthly_cost>0).length} paid services`;
+
+  const apiVal = d.claude?.total_api_value || 0;
+  document.getElementById('card-savings').textContent = `$${apiVal.toFixed(0)}`;
+  const claudeCost = (d.subscriptions||[]).find(s=>s.id==='claude_max')?.monthly_cost || 0;
+  const saving = apiVal - claudeCost;
+  const badge = document.getElementById('card-savings-badge');
+  badge.textContent = saving >= 0 ? `+$${saving.toFixed(0)} saved` : `-$${Math.abs(saving).toFixed(0)} under`;
+  badge.className = 'card-badge' + (saving >= 0 ? '' : ' warn');
+
+  const totalSessions = d.claude?.totalSessions || 0;
+  const totalMessages = d.claude?.totalMessages || 0;
+  document.getElementById('card-activity').textContent = fmt(totalMessages);
+  document.getElementById('card-activity-sub').textContent =
+    `messages · ${totalSessions} sessions`;
+
+  // Daily chart
+  const daily = d.claude?.dailyModelTokens || [];
+  const dates = daily.map(x => x.date.slice(5)); // MM-DD
+  const allModels = [...new Set(daily.flatMap(x => Object.keys(x.tokensByModel || {})))];
+  const datasets = allModels.map(m => ({
+    label: modelLabel(m),
+    data: daily.map(x => (x.tokensByModel||{})[m] || 0),
+    backgroundColor: MODEL_COLORS[m] || DEFAULT_COLOR,
+    borderRadius: 3,
+  }));
+
+  if (dailyChart) dailyChart.destroy();
+  dailyChart = new Chart(document.getElementById('chart-daily'), {
+    type: 'bar',
+    data: { labels: dates, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color:'#55556a', boxWidth:10, font:{size:11} } } },
+      scales: {
+        x: { stacked:true, ticks:{color:'#55556a',font:{size:11}}, grid:{color:'#1e1e2c'} },
+        y: { stacked:true, ticks:{color:'#55556a',font:{size:11},callback:v=>fmt(v)}, grid:{color:'#1e1e2c'} },
+      },
+    },
+  });
+
+  // Model doughnut
+  const mu = d.claude?.modelUsage || {};
+  const mNames = Object.keys(mu);
+  const mVals  = mNames.map(m => (mu[m].outputTokens||0) + (mu[m].inputTokens||0));
+  const mColors = mNames.map(m => MODEL_COLORS[m] || DEFAULT_COLOR);
+
+  if (modelChart) modelChart.destroy();
+  modelChart = new Chart(document.getElementById('chart-models'), {
+    type: 'doughnut',
+    data: {
+      labels: mNames.map(modelLabel),
+      datasets: [{ data: mVals, backgroundColor: mColors, borderWidth: 0, hoverOffset: 6 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '68%',
+      plugins: { legend: { position:'bottom', labels:{color:'#55556a',boxWidth:10,font:{size:11}} } },
+    },
+  });
+
+  // Model table
+  const maxVal = Math.max(...Object.values(mu).map(m => m.outputTokens||0), 1);
+  document.getElementById('model-table').innerHTML = Object.entries(mu).map(([id, m]) => {
+    const color = MODEL_COLORS[id] || DEFAULT_COLOR;
+    const pct = Math.round(((m.outputTokens||0) / maxVal) * 100);
+    return `<tr>
+      <td>
+        <span style="color:${color};font-weight:600">${modelLabel(id)}</span>
+        <div class="token-bar-bg"><div class="token-bar" style="width:${pct}%;background:${color}"></div></div>
+      </td>
+      <td>${fmt(m.outputTokens||0)}</td>
+      <td>${fmt(m.cacheReadInputTokens||0)}</td>
+      <td style="color:${color}">$${m.api_value_usd?.toFixed(2)||'—'}</td>
+    </tr>`;
+  }).join('');
+
+  // Subscriptions table
+  document.getElementById('subs-table').innerHTML = (d.subscriptions||[]).map(s => `
+    <tr>
+      <td>
+        <span style="color:${s.color||'#e1e1ef'};font-weight:600">${s.label}</span>
+      </td>
+      <td><span class="provider-tag">${s.provider}</span></td>
+      <td>${s.monthly_cost > 0 ? `$${s.monthly_cost}/mo` : '<span style="color:var(--muted)">Free</span>'}</td>
+    </tr>
+  `).join('');
+
+  // Ollama
+  const ol = d.ollama || {};
+  const dot = document.getElementById('ollama-dot');
+  dot.className = `status-dot ${ol.status}`;
+  document.getElementById('ollama-status').textContent =
+    ol.status === 'online' ? `online · ${ol.count} model${ol.count!==1?'s':''}` : 'offline';
+
+  const grid = document.getElementById('ollama-models');
+  const empty = document.getElementById('ollama-empty');
+  if (ol.models && ol.models.length > 0) {
+    grid.style.display = '';
+    empty.style.display = 'none';
+    grid.innerHTML = ol.models.map(m => {
+      const name = m.name || m.model || '—';
+      const size = m.size ? fmtBytes(m.size) : '';
+      const family = m.details?.family || '';
+      return `<div class="model-card">
+        <div class="model-name">${name}</div>
+        <div class="model-meta">${[family, size].filter(Boolean).join(' · ') || '—'}</div>
+      </div>`;
+    }).join('');
+  } else {
+    grid.style.display = 'none';
+    empty.style.display = '';
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
