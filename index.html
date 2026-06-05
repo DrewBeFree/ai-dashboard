@@ -130,6 +130,35 @@ td:last-child { text-align:right; }
 ::-webkit-scrollbar { width:6px; }
 ::-webkit-scrollbar-track { background:transparent; }
 ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+/* VIEW PANELS */
+.view-panel { flex:1; overflow-y:auto; padding:28px 32px; }
+
+/* SETTINGS */
+.settings-row {
+  display:flex; align-items:center; gap:12px;
+  padding:10px 0; border-top:1px solid var(--border);
+}
+.settings-row:first-child { border-top:none; }
+.settings-row label { width:160px; font-size:13px; color:var(--muted); flex-shrink:0; }
+.settings-input {
+  background:var(--surface2); border:1px solid var(--border);
+  color:var(--text); padding:6px 10px; border-radius:6px;
+  font-size:13px; flex:1; outline:none;
+}
+.settings-input:focus { border-color:var(--green); }
+.toggle-key-btn {
+  background:var(--surface2); border:1px solid var(--border);
+  color:var(--muted); padding:6px 10px; border-radius:6px;
+  cursor:pointer; font-size:12px; white-space:nowrap;
+}
+.toggle-key-btn:hover { color:var(--text); }
+.save-btn {
+  background:rgba(0,229,153,.12); border:1px solid rgba(0,229,153,.3);
+  color:var(--green); padding:6px 16px; border-radius:6px;
+  cursor:pointer; font-size:13px; font-weight:600; transition:background .15s;
+}
+.save-btn:hover { background:rgba(0,229,153,.2); }
 </style>
 </head>
 <body>
@@ -137,15 +166,15 @@ td:last-child { text-align:right; }
 <aside>
   <div class="logo">AI <span>Dashboard</span></div>
   <nav>
-    <a href="#" class="active">
+    <a href="#" data-view="overview" class="active" onclick="switchView('overview');return false;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       Overview
     </a>
-    <a href="#">
+    <a href="#" data-view="activity" onclick="switchView('activity');return false;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
       Activity
     </a>
-    <a href="#">
+    <a href="#" data-view="settings" onclick="switchView('settings');return false;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
       Settings
     </a>
@@ -154,7 +183,7 @@ td:last-child { text-align:right; }
   <div id="sidebar-providers"></div>
 </aside>
 
-<main id="main" style="display:none">
+<main id="main" class="view-panel" style="display:none">
   <div class="topbar">
     <div class="greeting">
       <h1>Good evening, <em id="name-greeting">—</em></h1>
@@ -251,6 +280,64 @@ td:last-child { text-align:right; }
   </div>
 </main>
 
+<!-- Activity View -->
+<div id="view-activity" class="view-panel" style="display:none">
+  <div class="topbar">
+    <div class="greeting">
+      <h1>Activity</h1>
+      <p style="color:var(--muted);margin-top:4px;font-size:13px">Token and session history · last 30 days</p>
+    </div>
+    <button class="refresh-btn" onclick="loadData()">↻ Refresh</button>
+  </div>
+  <div class="cards" id="activity-cards"></div>
+  <div class="charts" style="margin-top:20px">
+    <div class="chart-box" style="grid-column:1/-1">
+      <h3>Daily Output Tokens by Model</h3>
+      <div class="chart-wrap" style="height:240px"><canvas id="chart-activity-daily"></canvas></div>
+    </div>
+  </div>
+  <div class="section">
+    <h3>Daily Breakdown</h3>
+    <table>
+      <thead><tr>
+        <th>Date</th><th>Models Active</th><th>Output Tokens</th>
+      </tr></thead>
+      <tbody id="activity-table"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Settings View -->
+<div id="view-settings" class="view-panel" style="display:none">
+  <div class="topbar">
+    <div class="greeting">
+      <h1>Settings</h1>
+      <p style="color:var(--muted);margin-top:4px;font-size:13px">Subscriptions, API keys, connections</p>
+    </div>
+    <button class="save-btn" onclick="saveSettings()">Save Changes</button>
+  </div>
+  <div class="section">
+    <h3>General</h3>
+    <div id="settings-general"></div>
+  </div>
+  <div class="section">
+    <h3>Subscriptions</h3>
+    <table>
+      <thead><tr><th>Service</th><th>Provider</th><th>Monthly Cost</th></tr></thead>
+      <tbody id="settings-subs"></tbody>
+    </table>
+  </div>
+  <div class="section">
+    <h3>API Keys</h3>
+    <div id="settings-keys"></div>
+  </div>
+  <div class="section">
+    <h3>Connections</h3>
+    <div id="settings-connections"></div>
+  </div>
+  <div id="settings-status" style="margin-top:12px;font-size:13px;min-height:20px"></div>
+</div>
+
 <div id="loading">Loading…</div>
 
 <script>
@@ -280,7 +367,24 @@ function fmtBytes(b) {
   return (b / 1e3).toFixed(0) + ' MB';
 }
 
-let dailyChart, modelChart;
+let dailyChart, modelChart, activityChart;
+let appData = null;
+let settingsCfg = null;
+
+const PANEL_IDS = ['main', 'view-activity', 'view-settings'];
+
+function switchView(name) {
+  const target = name === 'overview' ? 'main' : `view-${name}`;
+  PANEL_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = id === target ? 'block' : 'none';
+  });
+  document.querySelectorAll('nav a').forEach(a => {
+    a.classList.toggle('active', a.dataset.view === name);
+  });
+  if (name === 'activity' && appData) renderActivity(appData);
+  if (name === 'settings') loadSettings();
+}
 
 async function loadData() {
   try {
@@ -292,6 +396,7 @@ async function loadData() {
 }
 
 function render(d) {
+  appData = d;
   document.getElementById('loading').style.display = 'none';
   document.getElementById('main').style.display = 'block';
 
@@ -560,6 +665,169 @@ function render(d) {
   } else {
     grid.style.display = 'none';
     empty.style.display = '';
+  }
+}
+
+// ── Activity view ────────────────────────────────────────────────────────────
+function renderActivity(d) {
+  const totalSessions = d.claude?.totalSessions || 0;
+  const totalMessages = d.claude?.totalMessages || 0;
+  const apiVal        = d.claude?.total_api_value || 0;
+  const daily         = d.claude?.dailyModelTokens || [];
+
+  document.getElementById('activity-cards').innerHTML = `
+    <div class="card purple">
+      <div class="card-label">Total Sessions</div>
+      <div class="card-value">${fmt(totalSessions)}</div>
+      <div class="card-sub">all time (from stats cache)</div>
+    </div>
+    <div class="card green">
+      <div class="card-label">Total Messages</div>
+      <div class="card-value">${fmt(totalMessages)}</div>
+      <div class="card-sub">all time (from stats cache)</div>
+    </div>
+    <div class="card orange">
+      <div class="card-label">API Value (all-time)</div>
+      <div class="card-value">$${apiVal.toFixed(0)}</div>
+      <div class="card-sub">equivalent API cost</div>
+    </div>`;
+
+  const dates    = daily.map(x => x.date.slice(5));
+  const models   = [...new Set(daily.flatMap(x => Object.keys(x.tokensByModel || {})))];
+  const datasets = models.map(m => ({
+    label: modelLabel(m),
+    data: daily.map(x => (x.tokensByModel || {})[m] || 0),
+    backgroundColor: MODEL_COLORS[m] || DEFAULT_COLOR,
+    borderRadius: 3,
+  }));
+
+  if (activityChart) activityChart.destroy();
+  activityChart = new Chart(document.getElementById('chart-activity-daily'), {
+    type: 'bar',
+    data: { labels: dates, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color:'#55556a', boxWidth:10, font:{size:11} } } },
+      scales: {
+        x: { stacked:true, ticks:{color:'#55556a',font:{size:11}}, grid:{color:'#1e1e2c'} },
+        y: { stacked:true, ticks:{color:'#55556a',font:{size:11},callback:v=>fmt(v)}, grid:{color:'#1e1e2c'} },
+      },
+    },
+  });
+
+  document.getElementById('activity-table').innerHTML = [...daily].reverse().map(day => {
+    const modelKeys = Object.keys(day.tokensByModel || {});
+    const totalTok  = Object.values(day.tokensByModel || {}).reduce((a, b) => a + b, 0);
+    const badges    = modelKeys.map(m =>
+      `<span style="color:${MODEL_COLORS[m]||DEFAULT_COLOR};font-size:11px;margin-right:6px">${modelLabel(m)}</span>`
+    ).join('');
+    return `<tr>
+      <td>${day.date}</td>
+      <td>${badges || '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="color:var(--green)">${fmt(totalTok)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Settings view ─────────────────────────────────────────────────────────────
+async function loadSettings() {
+  if (settingsCfg) { renderSettings(settingsCfg); return; }
+  try {
+    settingsCfg = await fetch('/api/config').then(r => r.json());
+    renderSettings(settingsCfg);
+  } catch(e) {
+    document.getElementById('settings-status').textContent = 'Failed to load config.';
+  }
+}
+
+function renderSettings(cfg) {
+  document.getElementById('settings-general').innerHTML = `
+    <div class="settings-row">
+      <label>Display Name</label>
+      <input id="set-name" type="text" value="${cfg.name || ''}" class="settings-input">
+    </div>`;
+
+  document.getElementById('settings-subs').innerHTML = (cfg.subscriptions || []).map(s => `
+    <tr>
+      <td><span style="color:${s.color||'#e1e1ef'};font-weight:600">${s.label}</span></td>
+      <td><span class="provider-tag">${s.provider}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="color:var(--muted)">$</span>
+          <input type="number" id="sub-${s.id}" value="${s.monthly_cost}"
+                 min="0" step="1" class="settings-input" style="width:90px">
+          <span style="color:var(--muted);font-size:12px">/mo</span>
+        </div>
+      </td>
+    </tr>`).join('');
+
+  const keys = cfg.api_keys || {};
+  document.getElementById('settings-keys').innerHTML = [
+    {id:'openai', label:'OpenAI',      placeholder:'sk-...'},
+    {id:'xai',    label:'xAI (Grok)',  placeholder:'xai-...'},
+    {id:'gemini', label:'Gemini',      placeholder:'AIza...'},
+  ].map(k => `
+    <div class="settings-row">
+      <label>${k.label}</label>
+      <input id="key-${k.id}" type="password" value="${keys[k.id]||''}"
+             placeholder="${k.placeholder}" class="settings-input" autocomplete="off">
+      <button class="toggle-key-btn" onclick="toggleKey('key-${k.id}',this)">Show</button>
+    </div>`).join('');
+
+  document.getElementById('settings-connections').innerHTML = `
+    <div class="settings-row">
+      <label>Ollama Host</label>
+      <input id="set-ollama" type="text" value="${cfg.ollama_host||'http://localhost:11434'}" class="settings-input">
+    </div>
+    <div class="settings-row">
+      <label>GCP Project ID</label>
+      <input id="set-gcp" type="text" value="${cfg.gcp_project||''}" class="settings-input">
+    </div>`;
+}
+
+function toggleKey(id, btn) {
+  const inp = document.getElementById(id);
+  inp.type   = inp.type === 'password' ? 'text' : 'password';
+  btn.textContent = inp.type === 'password' ? 'Show' : 'Hide';
+}
+
+async function saveSettings() {
+  if (!settingsCfg) return;
+  const statusEl = document.getElementById('settings-status');
+  const updates = {
+    name:        document.getElementById('set-name')?.value   ?? settingsCfg.name,
+    ollama_host: document.getElementById('set-ollama')?.value ?? settingsCfg.ollama_host,
+    gcp_project: document.getElementById('set-gcp')?.value    ?? settingsCfg.gcp_project,
+    api_keys:    {},
+    subscriptions: (settingsCfg.subscriptions || []).map(s => ({
+      id:           s.id,
+      monthly_cost: parseFloat(document.getElementById(`sub-${s.id}`)?.value ?? s.monthly_cost) || 0,
+    })),
+  };
+  ['openai','xai','gemini'].forEach(k => {
+    const v = document.getElementById(`key-${k}`)?.value;
+    if (v !== undefined) updates.api_keys[k] = v;
+  });
+
+  statusEl.textContent = 'Saving…';
+  statusEl.style.color = 'var(--muted)';
+  try {
+    const r = await fetch('/api/config', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(updates),
+    }).then(r => r.json());
+    if (r.ok) {
+      settingsCfg = null;
+      statusEl.textContent = '✓ Saved. Click Refresh on Overview to see changes.';
+      statusEl.style.color = 'var(--green)';
+    } else {
+      statusEl.textContent = `Error: ${r.error}`;
+      statusEl.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    statusEl.textContent = `Save failed: ${e.message}`;
+    statusEl.style.color = 'var(--red)';
   }
 }
 

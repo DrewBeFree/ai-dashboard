@@ -178,7 +178,19 @@ def get_openai_usage(api_key):
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def _send_json(self, payload: dict, status: int = 200) -> None:
+        body = json.dumps(payload).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", len(body))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
+        if self.path == "/api/config":
+            self._send_json(load_config())
+            return
         if self.path == "/api/data":
             cfg = load_config()
             claude = get_claude_data()
@@ -207,15 +219,35 @@ class Handler(SimpleHTTPRequestHandler):
                 "gcp_credits": cfg.get("gcp_credits", []),
                 "generated_at": datetime.now().isoformat(),
             }
-            body = json.dumps(payload).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Content-Length", len(body))
-            self.end_headers()
-            self.wfile.write(body)
+            self._send_json(payload)
         else:
             super().do_GET()
+
+    def do_POST(self) -> None:
+        if self.path != "/api/config":
+            self.send_error(404)
+            return
+        try:
+            length  = int(self.headers.get("Content-Length", 0))
+            updates = json.loads(self.rfile.read(length))
+            cfg     = load_config()
+
+            for k, v in updates.items():
+                if k == "api_keys" and isinstance(v, dict):
+                    cfg.setdefault("api_keys", {}).update(v)
+                elif k == "subscriptions" and isinstance(v, list):
+                    by_id = {s["id"]: s for s in cfg.get("subscriptions", [])}
+                    for s in v:
+                        if s["id"] in by_id:
+                            by_id[s["id"]]["monthly_cost"] = s["monthly_cost"]
+                    cfg["subscriptions"] = list(by_id.values())
+                else:
+                    cfg[k] = v
+
+            CONFIG_FILE.write_text(json.dumps(cfg, indent=2))
+            self._send_json({"ok": True})
+        except Exception as exc:
+            self._send_json({"ok": False, "error": str(exc)})
 
     def log_message(self, *_):
         pass
