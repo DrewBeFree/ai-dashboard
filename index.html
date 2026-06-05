@@ -222,6 +222,12 @@ td:last-child { text-align:right; }
     </table>
   </div>
 
+  <!-- Grok / xAI -->
+  <div class="section" id="grok-section">
+    <h3>Grok (xAI)</h3>
+    <div id="grok-content"></div>
+  </div>
+
   <!-- Gemini / GCP -->
   <div class="section" id="gemini-section">
     <h3>Gemini (Google Cloud)</h3>
@@ -388,7 +394,7 @@ function render(d) {
   const usageAvail = {
     claude_pro:   {status:'live',  note:'session files'},
     chatgpt_plus: {status:'none',  note:'no usage API (flat subscription)'},
-    grok_super:   {status:'none',  note:'no usage API (xAI)'},
+    grok_super:   {status:'key',   note:'add xAI key for usage'},
     codex:        {status:'key',   note:'add OpenAI key for usage'},
     ollama:       {status:'live',  note:'model list only'},
     gemini:       {status:'gcp',   note:'GCP credits — add API key'},
@@ -403,6 +409,11 @@ function render(d) {
       badge = openaiHasKey
         ? '<span style="color:var(--green);font-size:11px">● live</span>'
         : '<span style="color:var(--muted);font-size:11px">needs API key</span>';
+    } else if (s.id === 'grok_super') {
+      const xaiOk = d.xai_usage && d.xai_usage.status !== 'error';
+      badge = xaiOk
+        ? '<span style="color:var(--green);font-size:11px">● key valid</span>'
+        : '<span style="color:var(--muted);font-size:11px">needs xAI key</span>';
     } else if (s.id === 'gemini') {
       badge = geminiOk
         ? '<span style="color:var(--blue);font-size:11px">● key valid · credits via GCP console</span>'
@@ -418,6 +429,42 @@ function render(d) {
       <td>${s.monthly_cost > 0 ? `$${s.monthly_cost}/mo` : '<span style="color:var(--muted)">Free</span>'}</td>
     </tr>`;
   }).join('');
+
+  // Grok / xAI
+  const xai = d.xai_usage;
+  const xaiEl = document.getElementById('grok-content');
+  if (!xai) {
+    xaiEl.innerHTML = '<p style="color:var(--muted);font-size:13px">Add your xAI API key to <code style="color:var(--blue)">config.json</code> on atlas.</p>';
+  } else if (xai.status === 'error') {
+    xaiEl.innerHTML = `<p style="color:var(--red);font-size:13px">Error: ${xai.error}</p>`;
+  } else if (xai.status === 'key_only') {
+    const mList = (xai.models||[]).join(', ') || '—';
+    xaiEl.innerHTML = `
+      <p style="font-size:13px;margin-bottom:6px"><span style="color:var(--green)">● Key valid</span></p>
+      <p style="font-size:12px;color:var(--muted)">Available models: ${mList}</p>
+      <p style="font-size:12px;color:var(--muted);margin-top:6px">${xai.note}</p>`;
+  } else if (xai.status === 'ok') {
+    const rows = xai.data?.data || [];
+    if (!rows.length) {
+      xaiEl.innerHTML = '<p style="color:var(--muted);font-size:13px"><span style="color:var(--green)">● Key valid</span> &nbsp;·&nbsp; No usage today.</p>';
+    } else {
+      const byModel = {};
+      rows.forEach(r => {
+        const m = r.model || r.snapshot_id || 'unknown';
+        byModel[m] = byModel[m] || {req:0, in:0, out:0};
+        byModel[m].req += r.num_requests || r.n_requests || 0;
+        byModel[m].in  += r.input_tokens || r.n_context_tokens_total || 0;
+        byModel[m].out += r.output_tokens || r.n_generated_tokens_total || 0;
+      });
+      xaiEl.innerHTML = '<table style="width:100%"><thead><tr>' +
+        '<th>Model</th><th>Requests</th><th>Input</th><th>Output</th>' +
+        '</tr></thead><tbody>' +
+        Object.entries(byModel).map(([m, v]) =>
+          `<tr><td style="color:#1da1f2;font-weight:600">${m}</td>` +
+          `<td>${fmt(v.req)}</td><td>${fmt(v.in)}</td><td>${fmt(v.out)}</td></tr>`
+        ).join('') + '</tbody></table>';
+    }
+  }
 
   // Gemini / GCP Credits
   const gm = d.gemini_usage;

@@ -112,6 +112,37 @@ def get_ollama_data(host):
         return {"status": "offline", "count": 0, "models": [], "error": str(e)}
 
 
+def get_xai_usage(api_key):
+    if not api_key:
+        return None
+    try:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        # xAI usage endpoint (OpenAI-compatible style)
+        req = urllib.request.Request(
+            f"https://api.x.ai/v1/usage?date={today}",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return {"status": "ok", "data": json.loads(r.read())}
+    except urllib.error.HTTPError as e:
+        # If /usage doesn't exist, verify key with /models
+        if e.code in (404, 405):
+            try:
+                req2 = urllib.request.Request(
+                    "https://api.x.ai/v1/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+                with urllib.request.urlopen(req2, timeout=5) as r:
+                    models = [m.get("id") for m in json.loads(r.read()).get("data", [])]
+                    return {"status": "key_only", "models": models,
+                            "note": "Usage endpoint not available via API — check console.x.ai"}
+            except Exception as e2:
+                return {"status": "error", "error": str(e2)}
+        return {"status": "error", "error": f"HTTP {e.code}"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 def get_gemini_usage(api_key, project_id):
     """Fetch today's Gemini usage via the AI Studio usage API."""
     if not api_key:
@@ -154,6 +185,7 @@ class Handler(SimpleHTTPRequestHandler):
             ollama = get_ollama_data(cfg.get("ollama_host", "http://localhost:11434"))
             openai_key  = cfg.get("api_keys", {}).get("openai", "")
             gemini_key  = cfg.get("api_keys", {}).get("gemini", "")
+            xai_key     = cfg.get("api_keys", {}).get("xai", "")
             gcp_project = cfg.get("gcp_project", "")
 
             claude_cost = next(
@@ -171,6 +203,7 @@ class Handler(SimpleHTTPRequestHandler):
                 "ollama": ollama,
                 "openai_usage": get_openai_usage(openai_key),
                 "gemini_usage": get_gemini_usage(gemini_key, gcp_project),
+                "xai_usage": get_xai_usage(xai_key),
                 "gcp_credits": cfg.get("gcp_credits", []),
                 "generated_at": datetime.now().isoformat(),
             }
