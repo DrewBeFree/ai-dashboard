@@ -222,6 +222,12 @@ td:last-child { text-align:right; }
     </table>
   </div>
 
+  <!-- Gemini / GCP -->
+  <div class="section" id="gemini-section">
+    <h3>Gemini (Google Cloud)</h3>
+    <div id="gemini-content"></div>
+  </div>
+
   <!-- OpenAI Usage -->
   <div class="section" id="openai-section">
     <h3>OpenAI Usage</h3>
@@ -293,7 +299,7 @@ function render(d) {
 
   // Sidebar providers
   const providers = [...new Set((d.subscriptions || []).map(s => s.provider))];
-  const provColors = {'Anthropic':'#00e599','OpenAI':'#74aa9c','xAI':'#1da1f2','Local':'#a78bfa'};
+  const provColors = {'Anthropic':'#00e599','OpenAI':'#74aa9c','xAI':'#1da1f2','Local':'#a78bfa','Google':'#4285f4'};
   document.getElementById('sidebar-providers').innerHTML = providers.map(p =>
     `<div class="provider-pill"><span class="provider-dot" style="background:${provColors[p]||'#55556a'}"></span>${p}</div>`
   ).join('');
@@ -385,7 +391,9 @@ function render(d) {
     grok_super:   {status:'none',  note:'no usage API (xAI)'},
     codex:        {status:'key',   note:'add OpenAI key for usage'},
     ollama:       {status:'live',  note:'model list only'},
+    gemini:       {status:'gcp',   note:'GCP credits — add API key'},
   };
+  const geminiOk = d.gemini_usage?.status === 'ok';
   const openaiHasKey = d.openai_usage?.status === 'ok';
 
   document.getElementById('subs-table').innerHTML = (d.subscriptions||[]).map(s => {
@@ -395,6 +403,10 @@ function render(d) {
       badge = openaiHasKey
         ? '<span style="color:var(--green);font-size:11px">● live</span>'
         : '<span style="color:var(--muted);font-size:11px">needs API key</span>';
+    } else if (s.id === 'gemini') {
+      badge = geminiOk
+        ? '<span style="color:var(--blue);font-size:11px">● key valid · credits via GCP console</span>'
+        : '<span style="color:var(--muted);font-size:11px">add Gemini API key</span>';
     } else if (avail.status === 'live') {
       badge = '<span style="color:var(--green);font-size:11px">● live</span>';
     } else {
@@ -406,6 +418,46 @@ function render(d) {
       <td>${s.monthly_cost > 0 ? `$${s.monthly_cost}/mo` : '<span style="color:var(--muted)">Free</span>'}</td>
     </tr>`;
   }).join('');
+
+  // Gemini / GCP Credits
+  const gm = d.gemini_usage;
+  const gmEl = document.getElementById('gemini-content');
+  const credits = d.gcp_credits || [];
+  const creditsHtml = credits.length ? `
+    <table style="width:100%;margin-top:12px">
+      <thead><tr>
+        <th>Credit</th><th>Remaining</th><th>Original</th><th>Expires</th><th>Status</th>
+      </tr></thead>
+      <tbody>${credits.map(c => {
+        const pct = Math.round((c.remaining / c.original) * 100);
+        const statusColor = c.status === 'Available' ? 'var(--green)' : 'var(--red)';
+        return `<tr>
+          <td style="font-weight:600;color:var(--blue)">${c.name}</td>
+          <td>
+            $${c.remaining.toLocaleString()}
+            <div class="token-bar-bg"><div class="token-bar" style="width:${pct}%;background:var(--blue)"></div></div>
+          </td>
+          <td style="color:var(--muted)">$${c.original.toLocaleString()}</td>
+          <td style="color:var(--muted)">${c.expires}</td>
+          <td><span style="color:${statusColor};font-size:11px">● ${c.status}</span></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>` : '';
+
+  if (!gm) {
+    gmEl.innerHTML = `<p style="color:var(--muted);font-size:13px">Add your Gemini API key to <code style="color:var(--blue)">config.json</code> to verify access.</p>${creditsHtml}`;
+  } else if (gm.status === 'error') {
+    gmEl.innerHTML = `<p style="color:var(--red);font-size:13px">Key error: ${gm.error}</p>${creditsHtml}`;
+  } else {
+    const modelList = (gm.models||[]).join(', ') || '—';
+    gmEl.innerHTML = `
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        <span style="color:var(--green)">● Key valid</span> &nbsp;·&nbsp; Project: <code style="color:var(--blue)">${gm.project||'—'}</code>
+        &nbsp;·&nbsp; Available models: ${modelList}…
+      </p>
+      <p style="font-size:12px;color:var(--muted)">${gm.note}</p>
+      ${creditsHtml}`;
+  }
 
   // OpenAI Usage
   const oi = d.openai_usage;

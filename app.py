@@ -112,6 +112,25 @@ def get_ollama_data(host):
         return {"status": "offline", "count": 0, "models": [], "error": str(e)}
 
 
+def get_gemini_usage(api_key, project_id):
+    """Fetch today's Gemini usage via the AI Studio usage API."""
+    if not api_key:
+        return None
+    try:
+        # List models to verify key is valid
+        req = urllib.request.Request(
+            f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}&pageSize=5",
+        )
+        with urllib.request.urlopen(req, timeout=5) as r:
+            data = json.loads(r.read())
+        models = [m.get("name","").replace("models/","") for m in data.get("models", [])]
+        return {"status": "ok", "key_valid": True, "models": models[:5],
+                "note": "Credit usage requires GCP OAuth — check console.cloud.google.com",
+                "project": project_id}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 def get_openai_usage(api_key):
     if not api_key:
         return None
@@ -133,7 +152,9 @@ class Handler(SimpleHTTPRequestHandler):
             cfg = load_config()
             claude = get_claude_data()
             ollama = get_ollama_data(cfg.get("ollama_host", "http://localhost:11434"))
-            openai_key = cfg.get("api_keys", {}).get("openai", "")
+            openai_key  = cfg.get("api_keys", {}).get("openai", "")
+            gemini_key  = cfg.get("api_keys", {}).get("gemini", "")
+            gcp_project = cfg.get("gcp_project", "")
 
             claude_cost = next(
                 (s["monthly_cost"] for s in cfg.get("subscriptions", []) if s["id"] == "claude_pro"), 0
@@ -149,6 +170,8 @@ class Handler(SimpleHTTPRequestHandler):
                 "claude": claude,
                 "ollama": ollama,
                 "openai_usage": get_openai_usage(openai_key),
+                "gemini_usage": get_gemini_usage(gemini_key, gcp_project),
+                "gcp_credits": cfg.get("gcp_credits", []),
                 "generated_at": datetime.now().isoformat(),
             }
             body = json.dumps(payload).encode()
