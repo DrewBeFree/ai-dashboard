@@ -1,5 +1,25 @@
 # Session Log
 
+## 2026-06-05 — UI aesthetic overhaul
+
+**What we did:**
+- Replaced pure-black color scheme with darker blue background (#0a1428) for visual warmth and reduced eye strain
+- Updated card backgrounds to medium-gray blue (#1a2332) for better depth perception
+- Added subtle box shadows to all cards, chart boxes, and sections for layered appearance
+- Implemented smooth hover effects: cards lift slightly with enhanced shadows
+- Added gradient background to sidebar for visual interest
+- Refined all accent colors (green, orange, purple, blue) for improved contrast against new backgrounds
+- Increased border radius throughout for more modern aesthetic
+- Added hover animations to model cards
+
+**Where we stopped:**
+- Dashboard now has a sleek, sophisticated darker-blue theme with professional shadows and depth
+- Live at http://atlas:7474
+
+**Next up:**
+- Optional: add dark/light theme toggle if user preference arises
+- Continue with persistent history feature (SQLite) for extended analytics
+
 ## 2026-06-05 02:41 — Activity and Settings views
 
 **What we did:**
@@ -18,24 +38,6 @@
 **Next up:**
 - GCP credits editing in Settings (currently manual config.json edits only)
 - Long-term SQLite history to extend beyond the 30-day session file window
-
-## 2026-06-05 — Activity + Settings views
-
-**What we did:**
-- Added Activity view: full-width 30-day token chart, summary cards (total sessions/messages/API value), daily breakdown table with per-model badges
-- Added Settings view: editable form for display name, subscription monthly costs, API keys (OpenAI/xAI/Gemini) with show/hide toggle, Ollama host, GCP project ID
-- Added `GET /api/config` — returns current `config.json` to populate the settings form
-- Added `POST /api/config` — merges and saves updates (handles subscriptions list and api_keys dict specially to avoid clobbering unlisted keys)
-- Extracted `_send_json()` helper in `Handler` to remove duplication
-- Nav links (Activity, Settings) are now fully wired with `switchView()` JS
-
-**Where we stopped:**
-- All three nav views fully functional and deployed to atlas
-- Settings changes persist to `config.json` on atlas and take effect on next Overview refresh
-
-**Next up:**
-- GCP credits are still manually maintained in `config.json` — could add a credits editing section to Settings
-- Consider adding SQLite history for long-term session tracking beyond 30 days
 
 ## 2026-06-05 — Initial build
 
