@@ -1,5 +1,23 @@
 # Session Log
 
+## 2026-06-05 — Activity + Settings views
+
+**What we did:**
+- Added Activity view: full-width 30-day token chart, summary cards (total sessions/messages/API value), daily breakdown table with per-model badges
+- Added Settings view: editable form for display name, subscription monthly costs, API keys (OpenAI/xAI/Gemini) with show/hide toggle, Ollama host, GCP project ID
+- Added `GET /api/config` — returns current `config.json` to populate the settings form
+- Added `POST /api/config` — merges and saves updates (handles subscriptions list and api_keys dict specially to avoid clobbering unlisted keys)
+- Extracted `_send_json()` helper in `Handler` to remove duplication
+- Nav links (Activity, Settings) are now fully wired with `switchView()` JS
+
+**Where we stopped:**
+- All three nav views fully functional and deployed to atlas
+- Settings changes persist to `config.json` on atlas and take effect on next Overview refresh
+
+**Next up:**
+- GCP credits are still manually maintained in `config.json` — could add a credits editing section to Settings
+- Consider adding SQLite history for long-term session tracking beyond 30 days
+
 ## 2026-06-05 — Initial build
 
 **What we did:**
