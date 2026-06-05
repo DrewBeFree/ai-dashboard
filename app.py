@@ -128,7 +128,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = 7474
-    server = HTTPServer(("127.0.0.1", port), Handler)
+    server = HTTPServer(("0.0.0.0", port), Handler)
     url = f"http://localhost:{port}"
     print(f"\n  AI Dashboard → {url}\n  Ctrl+C to stop\n")
     threading.Timer(0.8, lambda: webbrowser.open(url)).start()
