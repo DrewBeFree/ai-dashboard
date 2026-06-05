@@ -45,9 +45,12 @@ def load_config():
 
 
 def get_claude_data():
-    if not CLAUDE_STATS.exists():
-        return {}
-    data = json.loads(CLAUDE_STATS.read_text())
+    # Prefer pre-computed live-stats.json (pushed by generate-stats.py on the host machine)
+    live = BASE / "live-stats.json"
+    if live.exists():
+        return json.loads(live.read_text())
+    # Fall back to stats-cache.json + local session parsing
+    data = json.loads(CLAUDE_STATS.read_text()) if CLAUDE_STATS.exists() else {}
     model_usage = data.get("modelUsage", {})
     total_value = 0.0
     enriched = {}
@@ -137,9 +140,6 @@ class Handler(SimpleHTTPRequestHandler):
             )
             total_monthly = sum(s["monthly_cost"] for s in cfg.get("subscriptions", []))
             api_savings = round(claude.get("total_api_value", 0) - claude_cost, 2)
-
-            # Replace stale cached daily data with live session data
-            claude["dailyModelTokens"] = get_daily_from_sessions()
 
             payload = {
                 "name": cfg.get("name", "User"),
